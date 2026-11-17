@@ -1,23 +1,20 @@
 # Stage 1: compile mbtileserver
-FROM golang:1.23-alpine3.20
+FROM golang:1.23-alpine3.20 AS build
 
 WORKDIR /
 RUN apk add git build-base
 COPY . .
 
-RUN GOOS=linux go build -o /mbtileserver
+# Static Link required libraries 
+RUN CGO_ENABLED=1 go build -ldflags='-linkmode external -extldflags "-static"' -o /mbtileserver
 
 
-# Stage 2: start from a smaller image
-FROM alpine:3.20
+# Stage 2: start from non-root image
+FROM gcr.io/distroless/static-debian13:nonroot
 
 WORKDIR /
 
-# Link libs to get around issues using musl
-RUN mkdir /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
-
-# copy the executable to the empty container
-COPY --from=0 /mbtileserver /mbtileserver
+COPY --from=build /mbtileserver /mbtileserver
 
 # Set the command as the entrypoint, so that it captures any
 # command-line arguments passed in
